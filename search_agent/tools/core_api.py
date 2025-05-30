@@ -6,7 +6,7 @@ import asyncio
 
 from .base import AcademicSearchTool
 from ..exceptions.custom_exceptions import APIError, APIQuotaExceededError, APIAuthenticationError
-from ..utils.config import config
+from ..utils.config import Config, get_config
 
 
 class CORESearchTool(AcademicSearchTool):
@@ -14,6 +14,7 @@ class CORESearchTool(AcademicSearchTool):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        config = get_config()
         self.api_key = config.api.core_api_key
         self.base_url = "https://api.core.ac.uk/v3/search/works"
         

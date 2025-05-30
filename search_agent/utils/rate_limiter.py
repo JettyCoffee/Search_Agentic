@@ -264,9 +264,11 @@ class RateLimiter:
 class APIRateLimitManager:
     """Manages rate limiters for different APIs."""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self):
         """Initialize rate limit manager with configuration."""
-        self.config = config
+        from .config import get_config
+        config = get_config()
+        
         self.limiters: Dict[str, RateLimiter] = {}
         
         # Default rate limit configurations for different APIs

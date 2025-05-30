@@ -11,7 +11,6 @@ from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..exceptions.custom_exceptions import LLMConfigError, LLMAPIError, QueryOptimizationError
-from ..utils.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -19,24 +18,25 @@ logger = logging.getLogger(__name__)
 class GeminiLLM:
     """Google Gemini API integration for query processing and optimization."""
     
-    def __init__(self, config: Config):
+    def __init__(self):
         """Initialize Gemini LLM with configuration."""
-        self.config = config
+        from ..utils.config import get_config
+        self.config = get_config()
         
         # Initialize Gemini API
-        api_key = config.get_api_key("GEMINI_API_KEY")
+        api_key = self.config.api.google_api_key
         if not api_key:
             raise LLMConfigError("Gemini API key not found in configuration")
         
         genai.configure(api_key=api_key)
         
         # Configure model
-        self.model_name = config.get("gemini_model", "gemini-1.5-flash")
+        self.model_name = "gemini-1.5-flash"
         self.generation_config = {
-            "temperature": config.get("gemini_temperature", 0.3),
-            "top_p": config.get("gemini_top_p", 0.95),
-            "top_k": config.get("gemini_top_k", 40),
-            "max_output_tokens": config.get("gemini_max_tokens", 2048),
+            "temperature": 0.3,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 2048,
         }
         
         # Safety settings

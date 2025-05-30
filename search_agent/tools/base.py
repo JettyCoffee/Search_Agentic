@@ -9,7 +9,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..core.state import SearchResult, ExecutionStatus
 from ..exceptions.custom_exceptions import SearchToolError, APITimeoutError
-from ..utils.config import config
+from ..utils.config import Config, get_config
 
 
 class ToolConfig(BaseModel):

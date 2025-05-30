@@ -2,7 +2,8 @@
 
 import os
 from typing import Optional, Dict, Any
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -13,8 +14,13 @@ class APIConfig(BaseSettings):
     """API配置设置"""
     
     # Google APIs
-    google_api_key: str = Field(..., env="GOOGLE_API_KEY")
-    google_cse_id: str = Field(..., env="GOOGLE_CSE_ID")
+    google_api_key: Optional[str] = Field(None, env="GOOGLE_API_KEY")
+    google_cse_id: Optional[str] = Field(None, env="GOOGLE_CSE_ID")
+    
+    # Claude API配置
+    claude_api_key: Optional[str] = Field(None, env="CLAUDE_API_KEY")
+    claude_base_url: str = Field("https://api.mjdjourney.cn/v1", env="CLAUDE_BASE_URL")
+    claude_model: str = Field("claude-3-5-sonnet-20241022", env="CLAUDE_MODEL")
     
     # Brave Search
     brave_api_key: Optional[str] = Field(None, env="BRAVE_API_KEY")
@@ -27,6 +33,9 @@ class APIConfig(BaseSettings):
 
 class AgentConfig(BaseSettings):
     """Agent配置设置"""
+    
+    # LLM选择
+    default_llm: str = Field("gemini", env="DEFAULT_LLM")
     
     # Search settings
     max_search_results: int = Field(10, env="MAX_SEARCH_RESULTS")
@@ -89,5 +98,13 @@ class Config:
         return True
 
 
-# 全局配置实例
-config = Config()
+# 全局配置实例 - 延迟加载
+_config_instance = None
+
+
+def get_config() -> Config:
+    """获取全局配置实例（延迟加载）"""
+    global _config_instance
+    if _config_instance is None:
+        _config_instance = Config()
+    return _config_instance

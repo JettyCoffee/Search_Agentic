@@ -6,7 +6,7 @@ import asyncio
 
 from .base import BaseSearchTool
 from ..exceptions.custom_exceptions import APIError, APIQuotaExceededError, APIAuthenticationError
-from ..utils.config import config
+from ..utils.config import Config, get_config
 
 
 class BraveSearchTool(BaseSearchTool):

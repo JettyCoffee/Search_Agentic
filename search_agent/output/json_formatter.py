@@ -56,12 +56,11 @@ class FormattedSearchOutput(BaseModel):
 class JSONFormatter:
     """Formats search results into structured JSON output."""
     
-    def __init__(self, config: Optional[Dict] = None):
+    def __init__(self):
         """Initialize JSON formatter with configuration."""
-        self.config = config or {}
-        self.include_raw_results = self.config.get("include_raw_results", True)
-        self.max_results_per_source = self.config.get("max_results_per_source", 10)
-        self.include_metadata = self.config.get("include_metadata", True)
+        self.include_raw_results = True
+        self.max_results_per_source = 10
+        self.include_metadata = True
     
     def format_output(self, workflow_result: Dict[str, Any]) -> Dict[str, Any]:
         """

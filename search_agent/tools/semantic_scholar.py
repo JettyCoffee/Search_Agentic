@@ -6,7 +6,7 @@ import asyncio
 
 from .base import AcademicSearchTool
 from ..exceptions.custom_exceptions import APIError, APIQuotaExceededError, APIAuthenticationError
-from ..utils.config import config
+from ..utils.config import Config, get_config
 
 
 class SemanticScholarTool(AcademicSearchTool):
@@ -14,6 +14,7 @@ class SemanticScholarTool(AcademicSearchTool):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        config = get_config()
         self.api_key = config.api.semantic_scholar_api_key  # 可选的API密钥
         self.base_url = "https://api.semanticscholar.org/graph/v1/paper/search"
         

@@ -8,7 +8,7 @@ from datetime import datetime
 
 from .base import AcademicSearchTool
 from ..exceptions.custom_exceptions import APIError
-from ..utils.config import config
+from ..utils.config import Config, get_config
 
 
 class ArXivSearchTool(AcademicSearchTool):
@@ -16,6 +16,7 @@ class ArXivSearchTool(AcademicSearchTool):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        config = get_config()
         self.base_url = config.api.arxiv_api_url
         self.available = True  # ArXiv API是免费的
     

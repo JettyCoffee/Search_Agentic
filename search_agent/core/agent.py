@@ -11,7 +11,7 @@ import json
 from ..workflow.search_workflow import SearchWorkflow
 from ..output.json_formatter import JSONFormatter
 from ..output.report_generator import ReportGenerator
-from ..utils.config import Config
+from ..utils.config import get_config
 from ..utils.cache import CacheManager
 from ..utils.rate_limiter import APIRateLimitManager
 from ..utils.data_validation import QueryValidator, DataCleaner
@@ -33,30 +33,24 @@ class SearchAgent:
     - Caching and rate limiting
     """
     
-    def __init__(self, config: Optional[Union[Dict[str, Any], Config]] = None):
+    def __init__(self):
         """
         Initialize the Search Agent.
-        
-        Args:
-            config: Configuration dictionary or Config object
         """
         try:
             # Initialize configuration
-            if isinstance(config, Config):
-                self.config = config
-            else:
-                self.config = Config(config or {})
+            self.config = get_config()
             
             # Initialize utilities
-            self.cache_manager = CacheManager(self.config.get_all())
-            self.rate_limit_manager = APIRateLimitManager(self.config.get_all())
+            self.cache_manager = CacheManager()
+            self.rate_limit_manager = APIRateLimitManager()
             
             # Initialize output formatters
-            self.json_formatter = JSONFormatter(self.config.get_all())
-            self.report_generator = ReportGenerator(self.config.get_all())
+            self.json_formatter = JSONFormatter()
+            self.report_generator = ReportGenerator()
             
             # Initialize search workflow
-            self.workflow = SearchWorkflow(self.config)
+            self.workflow = SearchWorkflow()
             
             # Agent state
             self.is_initialized = True

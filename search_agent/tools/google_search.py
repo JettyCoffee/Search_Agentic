@@ -6,7 +6,7 @@ import asyncio
 
 from .base import BaseSearchTool
 from ..exceptions.custom_exceptions import APIError, APIQuotaExceededError, APIAuthenticationError
-from ..utils.config import config
+from ..utils.config import Config, get_config
 
 
 class GoogleSearchTool(BaseSearchTool):
@@ -14,6 +14,7 @@ class GoogleSearchTool(BaseSearchTool):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        config = get_config()
         self.api_key = config.api.google_api_key
         self.cse_id = config.api.google_cse_id
         self.base_url = "https://www.googleapis.com/customsearch/v1"
@@ -38,11 +39,12 @@ class GoogleSearchTool(BaseSearchTool):
     
     async def _execute_search(self, query: str, **kwargs) -> List[Dict[str, Any]]:
         """执行Google自定义搜索"""
+        config = get_config()
         params = {
             "key": self.api_key,
             "cx": self.cse_id,
             "q": query,
-            "num": min(kwargs.get("max_results", self.config.max_results), 10),  # Google CSE最多返回10个结果
+            "num": min(kwargs.get("max_results", config.agent.max_search_results), 10),  # Google CSE最多返回10个结果
             "safe": "medium",
             "fields": "items(title,link,snippet,displayLink,formattedUrl,htmlSnippet)"
         }

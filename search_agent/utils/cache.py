@@ -18,13 +18,15 @@ logger = logging.getLogger(__name__)
 class CacheManager:
     """Manages caching for search results and API responses."""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self):
         """Initialize cache manager with configuration."""
-        self.config = config
-        self.cache_dir = Path(config.get("cache_directory", ".cache"))
-        self.cache_ttl = config.get("cache_ttl_hours", 24)  # TTL in hours
-        self.max_cache_size = config.get("max_cache_size_mb", 100)  # Max size in MB
-        self.enabled = config.get("cache_enabled", True)
+        from .config import get_config
+        config = get_config()
+        
+        self.cache_dir = Path(".cache")
+        self.cache_ttl = config.agent.cache_ttl / 3600  # Convert seconds to hours
+        self.max_cache_size = 100  # Max size in MB
+        self.enabled = config.agent.cache_enabled
         
         # Create cache directory
         self.cache_dir.mkdir(exist_ok=True)

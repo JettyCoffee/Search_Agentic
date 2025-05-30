@@ -14,9 +14,9 @@ from ..tools.wikipedia import WikipediaSearchTool
 from ..tools.google_search import GoogleSearchTool
 from ..tools.brave_search import BraveSearchTool
 from ..tools.semantic_scholar import SemanticScholarTool
-from ..tools.arxiv import ArXivTool
-from ..tools.core_api import CoreAPITool
-from ..utils.config import Config
+from ..tools.arxiv import ArXivSearchTool
+from ..tools.core_api import CORESearchTool
+from ..utils.config import get_config
 from ..exceptions.custom_exceptions import WorkflowError, SearchToolError
 
 logger = logging.getLogger(__name__)
@@ -25,21 +25,21 @@ logger = logging.getLogger(__name__)
 class SearchWorkflow:
     """LangGraph workflow for orchestrating multi-source search operations."""
     
-    def __init__(self, config: Config):
+    def __init__(self):
         """Initialize the search workflow with configuration."""
-        self.config = config
+        self.config = get_config()
         
         # Initialize LLM
-        self.llm = GeminiLLM(config)
+        self.llm = GeminiLLM()
         
         # Initialize search tools
         self.tools = {
-            'wikipedia': WikipediaSearchTool(config),
-            'google': GoogleSearchTool(config),
-            'brave': BraveSearchTool(config),
-            'semantic_scholar': SemanticScholarTool(config),
-            'arxiv': ArXivTool(config),
-            'core': CoreAPITool(config)
+            'wikipedia': WikipediaSearchTool(),
+            'google': GoogleSearchTool(),
+            'brave': BraveSearchTool(),
+            'semantic_scholar': SemanticScholarTool(),
+            'arxiv': ArXivSearchTool(),
+            'core': CORESearchTool()
         }
         
         # Create the workflow graph

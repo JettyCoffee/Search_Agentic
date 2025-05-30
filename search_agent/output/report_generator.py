@@ -13,12 +13,11 @@ logger = logging.getLogger(__name__)
 class ReportGenerator:
     """Generates human-readable reports from search results."""
     
-    def __init__(self, config: Optional[Dict] = None):
+    def __init__(self):
         """Initialize report generator with configuration."""
-        self.config = config or {}
-        self.max_results_per_source = self.config.get("max_results_per_source", 5)
-        self.include_metadata = self.config.get("include_metadata", True)
-        self.include_sources = self.config.get("include_sources", True)
+        self.max_results_per_source = 5
+        self.include_metadata = True
+        self.include_sources = True
     
     def generate_text_report(self, formatted_output: Dict[str, Any]) -> str:
         """
