@@ -58,6 +58,26 @@ class LLMError(SearchAgentError):
     pass
 
 
+class LLMConfigError(LLMError):
+    """LLM配置错误"""
+    pass
+
+
+class LLMAPIError(LLMError):
+    """LLM API错误"""
+    pass
+
+
+class QueryOptimizationError(LLMError):
+    """查询优化错误"""
+    pass
+
+
+class WorkflowError(SearchAgentError):
+    """工作流错误"""
+    pass
+
+
 class SearchToolError(SearchAgentError):
     """搜索工具错误"""
     

@@ -8,7 +8,7 @@ from typing import Dict, List, Any, Optional, TypedDict
 from langgraph.graph import Graph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from ..core.state import SearchState
+from ..core.state import AgentState, StateManager, ExecutionStatus
 from ..llm.gemini import GeminiLLM
 from ..tools.wikipedia import WikipediaSearchTool
 from ..tools.google_search import GoogleSearchTool
@@ -101,51 +101,40 @@ class SearchWorkflow:
         """
         try:
             # Initialize state
-            initial_state = SearchState(
-                original_query=query,
-                current_step="initialize",
-                search_results={},
-                optimized_queries={},
-                context="",
-                synthesis={},
-                final_output={},
-                errors=[],
-                metadata={
-                    "start_time": asyncio.get_event_loop().time(),
-                    "config_overrides": config_overrides or {}
-                }
-            )
+            initial_state = StateManager.create_initial_state(query)
             
             # Run the workflow
             result = await self.graph.ainvoke(initial_state)
             
-            # Return the final output
-            return result.get("final_output", {})
+            # Return the final output from execution metadata
+            return result.get("execution_metadata", {}).get("final_output", {})
             
         except Exception as e:
             logger.error(f"Workflow execution failed: {str(e)}")
             raise WorkflowError(f"Search workflow failed: {str(e)}")
     
-    async def _initialize_search(self, state: SearchState) -> SearchState:
+    async def _initialize_search(self, state: AgentState) -> AgentState:
         """Initialize the search process."""
         logger.info(f"Starting search for query: {state['original_query']}")
         
-        state["current_step"] = "initialize"
-        state["metadata"]["tools_available"] = list(self.tools.keys())
+        # Update execution metadata
+        state = StateManager.update_execution_metadata(state, "initialize")
+        state["execution_metadata"]["tools_available"] = list(self.tools.keys())
         
         # Extract key concepts from the query
         try:
             key_concepts = await self.llm.extract_key_concepts(state["original_query"])
-            state["metadata"]["key_concepts"] = key_concepts
+            state["execution_metadata"]["key_concepts"] = key_concepts
         except Exception as e:
             logger.warning(f"Failed to extract key concepts: {str(e)}")
-            state["errors"].append(f"Key concept extraction failed: {str(e)}")
+            state["errors"]["key_concepts"] = f"Key concept extraction failed: {str(e)}"
         
         return state
     
-    async def _get_wikipedia_context(self, state: SearchState) -> SearchState:
+    async def _get_wikipedia_context(self, state: AgentState) -> AgentState:
         """Get background context from Wikipedia."""
-        state["current_step"] = "get_context"
+        # Update execution metadata
+        state = StateManager.update_execution_metadata(state, "get_context")
         
         try:
             logger.info("Fetching Wikipedia context")
@@ -163,24 +152,26 @@ class SearchWorkflow:
                     if result.get('content'):
                         context_parts.append(result['content'][:500])  # Limit length
                 
-                state["context"] = " ".join(context_parts)
-                state["search_results"]["wikipedia"] = wikipedia_results
+                state["wikipedia_summary"] = " ".join(context_parts)
+                state["raw_search_results"]["wikipedia"] = wikipedia_results
                 
                 logger.info(f"Retrieved context from {len(wikipedia_results)} Wikipedia articles")
             else:
                 logger.warning("No Wikipedia context found")
-                state["context"] = ""
+                state["wikipedia_summary"] = ""
                 
         except Exception as e:
             logger.error(f"Wikipedia context retrieval failed: {str(e)}")
-            state["errors"].append(f"Wikipedia context failed: {str(e)}")
-            state["context"] = ""
+            state["errors"]["wikipedia"] = f"Wikipedia context failed: {str(e)}"
+            state["wikipedia_error"] = str(e)
+            state["wikipedia_summary"] = ""
         
         return state
     
-    async def _optimize_search_queries(self, state: SearchState) -> SearchState:
+    async def _optimize_search_queries(self, state: AgentState) -> AgentState:
         """Optimize search queries for different sources."""
-        state["current_step"] = "optimize_query"
+        # Update execution metadata
+        state = StateManager.update_execution_metadata(state, "optimize_query")
         
         try:
             logger.info("Optimizing search queries")
@@ -188,37 +179,44 @@ class SearchWorkflow:
             # Use LLM to optimize queries
             optimization_result = await self.llm.optimize_query(
                 state["original_query"],
-                state["context"]
+                state["wikipedia_summary"]
             )
             
-            state["optimized_queries"] = optimization_result
+            # Store refined queries for different sources
+            if isinstance(optimization_result, dict):
+                for source_name in ["arxiv", "semantic_scholar", "google", "brave"]:
+                    query_key = f"{source_name}_query"
+                    if query_key in optimization_result:
+                        state["refined_queries"][source_name] = optimization_result[query_key]
+                    else:
+                        state["refined_queries"][source_name] = state["original_query"]
+            else:
+                # Fallback: use original query for all sources
+                for source_name in ["arxiv", "semantic_scholar", "google", "brave"]:
+                    state["refined_queries"][source_name] = state["original_query"]
+            
             logger.info("Query optimization completed")
             
         except Exception as e:
             logger.error(f"Query optimization failed: {str(e)}")
-            state["errors"].append(f"Query optimization failed: {str(e)}")
+            state["errors"]["query_optimization"] = f"Query optimization failed: {str(e)}"
             
-            # Fallback: use original query
-            state["optimized_queries"] = {
-                "academic_query": state["original_query"],
-                "web_query": state["original_query"],
-                "wikipedia_query": state["original_query"],
-                "key_concepts": [],
-                "alternative_terms": [],
-                "broader_terms": [],
-                "narrower_terms": []
-            }
+            # Fallback: use original query for all sources
+            for source_name in ["arxiv", "semantic_scholar", "google", "brave"]:
+                state["refined_queries"][source_name] = state["original_query"]
         
         return state
     
-    async def _search_academic_sources(self, state: SearchState) -> SearchState:
+    async def _search_academic_sources(self, state: AgentState) -> AgentState:
         """Search academic sources in parallel."""
-        state["current_step"] = "search_academic"
+        # Update execution metadata
+        state = StateManager.update_execution_metadata(state, "search_academic")
         
         logger.info("Searching academic sources")
         
-        # Get optimized academic query
-        academic_query = state["optimized_queries"].get("academic_query", state["original_query"])
+        # Get refined queries or fallback to original
+        arxiv_query = state["refined_queries"].get("arxiv", state["original_query"])
+        semantic_query = state["refined_queries"].get("semantic_scholar", state["original_query"])
         
         # Define academic search tasks
         academic_tasks = []
@@ -226,19 +224,19 @@ class SearchWorkflow:
         # Semantic Scholar
         if "semantic_scholar" in self.tools:
             academic_tasks.append(
-                self._safe_search("semantic_scholar", academic_query, limit=5)
+                self._safe_search("semantic_scholar", semantic_query, limit=5)
             )
         
         # ArXiv
         if "arxiv" in self.tools:
             academic_tasks.append(
-                self._safe_search("arxiv", academic_query, limit=5)
+                self._safe_search("arxiv", arxiv_query, limit=5)
             )
         
         # CORE API
         if "core" in self.tools:
             academic_tasks.append(
-                self._safe_search("core", academic_query, limit=5)
+                self._safe_search("core", semantic_query, limit=5)
             )
         
         # Execute academic searches in parallel
@@ -252,22 +250,24 @@ class SearchWorkflow:
                     tool_name = tool_names[i]
                     if isinstance(result, Exception):
                         logger.error(f"{tool_name} search failed: {str(result)}")
-                        state["errors"].append(f"{tool_name} search failed: {str(result)}")
-                        state["search_results"][tool_name] = []
+                        state["errors"][tool_name] = f"{tool_name} search failed: {str(result)}"
+                        state["raw_search_results"][tool_name] = []
                     else:
-                        state["search_results"][tool_name] = result
+                        state["raw_search_results"][tool_name] = result
         
         logger.info(f"Academic search completed for {len(academic_tasks)} sources")
         return state
     
-    async def _search_web_sources(self, state: SearchState) -> SearchState:
+    async def _search_web_sources(self, state: AgentState) -> AgentState:
         """Search web sources in parallel."""
-        state["current_step"] = "search_web"
+        # Update execution metadata
+        state = StateManager.update_execution_metadata(state, "search_web")
         
         logger.info("Searching web sources")
         
-        # Get optimized web query
-        web_query = state["optimized_queries"].get("web_query", state["original_query"])
+        # Get refined queries or fallback to original
+        google_query = state["refined_queries"].get("google", state["original_query"])
+        brave_query = state["refined_queries"].get("brave", state["original_query"])
         
         # Define web search tasks
         web_tasks = []
@@ -275,13 +275,13 @@ class SearchWorkflow:
         # Google Search
         if "google" in self.tools:
             web_tasks.append(
-                self._safe_search("google", web_query, limit=8)
+                self._safe_search("google", google_query, limit=8)
             )
         
         # Brave Search
         if "brave" in self.tools:
             web_tasks.append(
-                self._safe_search("brave", web_query, limit=8)
+                self._safe_search("brave", brave_query, limit=8)
             )
         
         # Execute web searches in parallel
@@ -295,17 +295,18 @@ class SearchWorkflow:
                     tool_name = tool_names[i]
                     if isinstance(result, Exception):
                         logger.error(f"{tool_name} search failed: {str(result)}")
-                        state["errors"].append(f"{tool_name} search failed: {str(result)}")
-                        state["search_results"][tool_name] = []
+                        state["errors"][tool_name] = f"{tool_name} search failed: {str(result)}"
+                        state["raw_search_results"][tool_name] = []
                     else:
-                        state["search_results"][tool_name] = result
+                        state["raw_search_results"][tool_name] = result
         
         logger.info(f"Web search completed for {len(web_tasks)} sources")
         return state
     
-    async def _synthesize_search_results(self, state: SearchState) -> SearchState:
+    async def _synthesize_search_results(self, state: AgentState) -> AgentState:
         """Synthesize results from all sources."""
-        state["current_step"] = "synthesize_results"
+        # Update execution metadata
+        state = StateManager.update_execution_metadata(state, "synthesize_results")
         
         try:
             logger.info("Synthesizing search results")
@@ -313,18 +314,19 @@ class SearchWorkflow:
             # Use LLM to synthesize results
             synthesis = await self.llm.synthesize_results(
                 state["original_query"],
-                state["search_results"]
+                state["raw_search_results"]
             )
             
-            state["synthesis"] = synthesis
+            # Store synthesis result in execution metadata
+            state["execution_metadata"]["synthesis"] = synthesis
             logger.info("Result synthesis completed")
             
         except Exception as e:
             logger.error(f"Result synthesis failed: {str(e)}")
-            state["errors"].append(f"Result synthesis failed: {str(e)}")
+            state["errors"]["synthesis"] = f"Result synthesis failed: {str(e)}"
             
             # Fallback synthesis
-            state["synthesis"] = {
+            state["execution_metadata"]["synthesis"] = {
                 "summary": "Search completed but synthesis failed",
                 "key_findings": [],
                 "confidence_level": "low",
@@ -333,47 +335,49 @@ class SearchWorkflow:
         
         return state
     
-    async def _format_final_output(self, state: SearchState) -> SearchState:
+    async def _format_final_output(self, state: AgentState) -> AgentState:
         """Format the final output."""
-        state["current_step"] = "format_output"
+        # Update execution metadata and finalize state
+        state = StateManager.update_execution_metadata(state, "format_output")
+        state = StateManager.finalize_state(state)
         
         try:
-            # Calculate execution time
-            end_time = asyncio.get_event_loop().time()
-            start_time = state["metadata"].get("start_time", end_time)
-            execution_time = end_time - start_time
-            
             # Count total results
-            total_results = sum(len(results) for results in state["search_results"].values())
+            total_results = sum(len(results) for results in state["raw_search_results"].values())
             
             # Format final output
             final_output = {
                 "query": state["original_query"],
-                "synthesis": state["synthesis"],
-                "search_results": state["search_results"],
-                "optimized_queries": state["optimized_queries"],
+                "synthesis": state["execution_metadata"].get("synthesis", {}),
+                "search_results": state["raw_search_results"],
+                "refined_queries": state["refined_queries"],
+                "wikipedia_context": state["wikipedia_summary"],
                 "metadata": {
-                    "execution_time_seconds": round(execution_time, 2),
+                    "execution_time_seconds": state["total_execution_time"],
                     "total_results": total_results,
-                    "sources_searched": list(state["search_results"].keys()),
+                    "sources_searched": list(state["raw_search_results"].keys()),
+                    "successful_sources": StateManager.get_successful_sources(state),
+                    "failed_sources": StateManager.get_failed_sources(state),
                     "errors": state["errors"],
-                    "context_used": bool(state["context"]),
-                    "timestamp": end_time
+                    "context_used": bool(state["wikipedia_summary"]),
+                    "timestamp": state["execution_timestamp"],
+                    "final_status": state["final_status"]
                 }
             }
             
-            state["final_output"] = final_output
-            logger.info(f"Search completed in {execution_time:.2f}s with {total_results} total results")
+            # Store final output in execution metadata
+            state["execution_metadata"]["final_output"] = final_output
+            logger.info(f"Search completed in {state['total_execution_time']:.2f}s with {total_results} total results")
             
         except Exception as e:
             logger.error(f"Output formatting failed: {str(e)}")
-            state["errors"].append(f"Output formatting failed: {str(e)}")
+            state["errors"]["output_formatting"] = f"Output formatting failed: {str(e)}"
             
             # Minimal fallback output
-            state["final_output"] = {
+            state["execution_metadata"]["final_output"] = {
                 "query": state["original_query"],
-                "synthesis": state["synthesis"],
-                "search_results": state["search_results"],
+                "synthesis": {},
+                "search_results": state["raw_search_results"],
                 "metadata": {"errors": state["errors"]}
             }
         
@@ -391,7 +395,7 @@ class SearchWorkflow:
             logger.error(f"Search failed for {tool_name}: {str(e)}")
             raise SearchToolError(f"{tool_name} search failed: {str(e)}")
     
-    def _should_run_parallel_searches(self, state: SearchState) -> str:
+    def _should_run_parallel_searches(self, state: AgentState) -> str:
         """Determine which searches to run based on the query and configuration."""
         # This could be made more sophisticated based on query analysis
         # For now, always run both academic and web searches
