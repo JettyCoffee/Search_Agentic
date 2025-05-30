@@ -378,5 +378,3 @@ class APIRateLimitManager:
             self.limiters[api_name] = RateLimiter(default_config, api_name)
             
         logger.info(f"Initialized rate limiters for {len(self.limiters)} APIs")
-            
-            self.limiters[api_name] = RateLimiter(config, api_name)

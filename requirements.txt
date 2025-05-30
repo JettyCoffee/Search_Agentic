@@ -47,3 +47,5 @@ mypy>=1.7.0
 # Optional: Jupyter for development
 jupyter>=1.0.0
 ipython>=8.0.0
+
+aiofiles>=24.1.0

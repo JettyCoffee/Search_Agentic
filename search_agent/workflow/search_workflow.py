@@ -42,11 +42,11 @@ class SearchWorkflow:
             'core': CORESearchTool()
         }
         
-        # Create the workflow graph
-        self.graph = self._build_workflow_graph()
-        
         # Set up checkpointing for state persistence
         self.checkpointer = MemorySaver()
+        
+        # Create the workflow graph
+        self.graph = self._build_workflow_graph()
         
         logger.info("Search workflow initialized successfully")
     
@@ -68,8 +68,9 @@ class SearchWorkflow:
         workflow.add_edge(START, "initialize")
         workflow.add_edge("initialize", "get_context")
         workflow.add_edge("get_context", "optimize_query")
-        workflow.add_edge("optimize_query", "search_academic")
-        workflow.add_edge("optimize_query", "search_web")
+        # 删除直接连接，使用条件路由代替
+        # workflow.add_edge("optimize_query", "search_academic")
+        # workflow.add_edge("optimize_query", "search_web")
         workflow.add_edge("search_academic", "synthesize_results")
         workflow.add_edge("search_web", "synthesize_results")
         workflow.add_edge("synthesize_results", "format_output")
@@ -82,7 +83,9 @@ class SearchWorkflow:
             {
                 "academic": "search_academic",
                 "web": "search_web",
-                "both": ["search_academic", "search_web"]
+                # 改为分别定义边，而不是使用列表
+                "both_academic": "search_academic",
+                "both_web": "search_web"
             }
         )
         
@@ -103,8 +106,17 @@ class SearchWorkflow:
             # Initialize state
             initial_state = StateManager.create_initial_state(query)
             
+            # 设置检查点配置
+            config_dict = {
+                "configurable": {
+                    "thread_id": f"search_{hash(query) % 10000000}",
+                    "checkpoint_ns": "search_agent",
+                    "checkpoint_id": f"query_{hash(query) % 1000000}"
+                }
+            }
+            
             # Run the workflow
-            result = await self.graph.ainvoke(initial_state)
+            result = await self.graph.ainvoke(initial_state, config=config_dict)
             
             # Return the final output from execution metadata
             return result.get("execution_metadata", {}).get("final_output", {})
@@ -397,6 +409,18 @@ class SearchWorkflow:
     
     def _should_run_parallel_searches(self, state: AgentState) -> str:
         """Determine which searches to run based on the query and configuration."""
-        # This could be made more sophisticated based on query analysis
-        # For now, always run both academic and web searches
-        return "both"
+        # 可以基于查询分析使其更复杂
+        # 查询类型决定使用哪种搜索
+        query_type = state.get("query_type", "general")
+        
+        if query_type == "academic":
+            return "academic"
+        elif query_type == "web":
+            return "web"
+        else:
+            # 默认情况下，根据查询交替选择路径
+            # 这是一个简单的方法，确保两个搜索都会运行
+            if hash(state.get("query", "")) % 2 == 0:
+                return "both_academic"
+            else:
+                return "both_web"

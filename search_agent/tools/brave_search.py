@@ -14,7 +14,9 @@ class BraveSearchTool(BaseSearchTool):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.api_key = config.api.brave_api_key
+        # 从配置工具获取配置
+        self.config = get_config()
+        self.api_key = self.config.api.brave_api_key
         self.base_url = "https://api.search.brave.com/res/v1/web/search"
         
         if not self.api_key:
