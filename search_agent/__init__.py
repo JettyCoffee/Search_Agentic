@@ -30,9 +30,9 @@ from .exceptions.custom_exceptions import (
     ConfigurationError,
     SearchToolError,
     LLMError,
-    RateLimitError,
-    ValidationError,
-    CacheError,
+    APIRateLimitError,
+    DataValidationError,
+    OutputFormattingError,
 )
 
 # Version information
@@ -61,9 +61,9 @@ __all__ = [
     "ConfigurationError", 
     "SearchToolError",
     "LLMError",
-    "RateLimitError",
-    "ValidationError",
-    "CacheError",
+    "APIRateLimitError",
+    "DataValidationError",
+    "OutputFormattingError",
     
     # Version info
     "__version__",

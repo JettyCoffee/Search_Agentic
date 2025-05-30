@@ -33,7 +33,7 @@ class SearchAgentLogger:
             processors=[
                 processors.TimeStamper(fmt="ISO"),
                 processors.add_log_level,
-                processors.add_logger_name,
+                # 移除不支持的processors.add_logger_name
                 processors.JSONRenderer(),
             ],
             wrapper_class=structlog.make_filtering_bound_logger(

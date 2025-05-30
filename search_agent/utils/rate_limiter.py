@@ -373,20 +373,10 @@ class APIRateLimitManager:
     
     def _initialize_limiters(self) -> None:
         """Initialize rate limiters based on configuration."""
+        # 使用默认配置创建限流器
         for api_name, default_config in self.default_configs.items():
-            # Check if there's a custom config in the main config
-            api_config = self.config.get(f"{api_name}_rate_limit", {})
+            self.limiters[api_name] = RateLimiter(default_config, api_name)
             
-            if api_config:
-                # Create custom config
-                config = RateLimitConfig(
-                    requests_per_minute=api_config.get("requests_per_minute", default_config.requests_per_minute),
-                    requests_per_hour=api_config.get("requests_per_hour", default_config.requests_per_hour),
-                    requests_per_day=api_config.get("requests_per_day", default_config.requests_per_day),
-                    burst_limit=api_config.get("burst_limit", default_config.burst_limit),
-                    burst_window_seconds=api_config.get("burst_window_seconds", default_config.burst_window_seconds)
-                )
-            else:
-                config = default_config
+        logger.info(f"Initialized rate limiters for {len(self.limiters)} APIs")
             
             self.limiters[api_name] = RateLimiter(config, api_name)
