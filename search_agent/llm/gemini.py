@@ -23,45 +23,82 @@ class GeminiLLM:
         from ..utils.config import get_config
         self.config = get_config()
         
+        # 检查是否使用模拟模式
+        self.use_mock = self.config.development.use_mock_apis
+        
         # Initialize Gemini API
         api_key = self.config.api.google_api_key
-        if not api_key:
+        if not api_key and not self.use_mock:
             raise LLMConfigError("Gemini API key not found in configuration")
         
-        genai.configure(api_key=api_key)
+        if not self.use_mock:
+            genai.configure(api_key=api_key)
+            
+            # Configure model
+            self.model_name = "gemini-2.5-flash"
+            self.generation_config = {
+                "temperature": 0.3,
+                "top_p": 0.95,
+                "top_k": 40,
+                "max_output_tokens": 2048,
+            }
+            
+            # Safety settings
+            self.safety_settings = {
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+            }
         
-        # Configure model
-        self.model_name = "gemini-1.5-flash"
-        self.generation_config = {
-            "temperature": 0.3,
-            "top_p": 0.95,
-            "top_k": 40,
-            "max_output_tokens": 2048,
-        }
-        
-        # Safety settings
-        self.safety_settings = {
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        }
-        
-        # Initialize model
-        try:
-            self.model = genai.GenerativeModel(
-                model_name=self.model_name,
-                generation_config=self.generation_config,
-                safety_settings=self.safety_settings
-            )
-        except Exception as e:
-            raise LLMConfigError(f"Failed to initialize Gemini model: {str(e)}")
+        # 只在非模拟模式下初始化模型
+        if not self.use_mock:
+            try:
+                self.model = genai.GenerativeModel(
+                    model_name=self.model_name,
+                    generation_config=self.generation_config,
+                    safety_settings=self.safety_settings
+                )
+                logger.info(f"Gemini model {self.model_name} initialized successfully")
+            except Exception as e:
+                raise LLMConfigError(f"Failed to initialize Gemini model: {str(e)}")
+        else:
+            logger.info("Using mock mode for LLM, skipping actual model initialization")
     
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     async def _make_api_call(self, prompt: str) -> str:
         """Make an API call to Gemini with retry logic."""
         try:
-            # Run the blocking API call in an executor
+            # 检查是否使用模拟模式
+            if hasattr(self, 'use_mock') and self.use_mock:
+                print(f"[模拟模式] LLM API调用: {prompt[:100]}...")
+                # 根据不同的提示返回不同的模拟响应
+                if "key concepts" in prompt.lower():
+                    return json.dumps(["人工智能", "医疗诊断", "机器学习", "辅助诊断", "医学影像分析"])
+                elif "optimize" in prompt.lower():
+                    return json.dumps({
+                        "arxiv": "artificial intelligence medical diagnosis applications",
+                        "semantic_scholar": "AI machine learning healthcare diagnosis",
+                        "google": "人工智能在医疗诊断中的应用 最新技术",
+                        "brave": "医疗人工智能诊断系统案例"
+                    })
+                elif "synthesize" in prompt.lower():
+                    return json.dumps({
+                        "summary": "人工智能在医疗诊断领域有广泛应用，包括医学影像分析、病历分析和预测分析等。",
+                        "key_findings": [
+                            "AI可以提高医学影像诊断的准确性",
+                            "机器学习算法能处理大量医疗数据并发现隐藏模式",
+                            "人工智能辅助诊断系统已在多家医院投入使用"
+                        ],
+                        "confidence_level": "high",
+                        "limitations": "缺乏医疗专业知识和伦理考量",
+                        "recommendations": ["关注AI医疗领域的最新研究", "探索更多实际应用案例"]
+                    })
+                else:
+                    # 默认响应
+                    return json.dumps({"result": "模拟的LLM响应", "query": prompt[:50]})
+            
+            # 正常API调用
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
                 None, 

@@ -1,0 +1,159 @@
+{
+  "mcpServers": {
+    "mcp-server": {
+      "command": "npx",
+      "args": ["-y", "mcp-server", "run", "mcp-server.json"]
+    }
+  },
+  "projectKnowledge": {
+    "architecture": {
+      "core_modules": [
+        {
+          "name": "search_agent",
+          "description": "核心搜索代理模块",
+          "components": ["core", "tools", "workflow", "utils", "exceptions"]
+        },
+        {
+          "name": "tests",
+          "description": "测试套件",
+          "components": ["unit", "integration", "fixtures"]
+        }
+      ],
+      "data_sources": [
+        {
+          "name": "google",
+          "type": "search_engine",
+          "api_key": "GOOGLE_API_KEY",
+          "cse_id": "GOOGLE_CSE_ID"
+        },
+        {
+          "name": "brave",
+          "type": "search_engine",
+          "api_key": "BRAVE_API_KEY"
+        },
+        {
+          "name": "wikipedia",
+          "type": "knowledge_base",
+          "api_required": false
+        },
+        {
+          "name": "semantic_scholar",
+          "type": "academic",
+          "api_key": "optional"
+        },
+        {
+          "name": "arxiv",
+          "type": "academic",
+          "api_required": false
+        }
+      ]
+    },
+    "dependencies": {
+      "core": [
+        "langchain>=0.1.0",
+        "langgraph>=0.0.40",
+        "langchain-google-genai>=1.0.0",
+        "langchain-community>=0.0.20"
+      ],
+      "api_clients": [
+        "requests>=2.31.0",
+        "httpx>=0.25.0",
+        "aiohttp>=3.9.0"
+      ],
+      "data_processing": [
+        "pydantic>=2.5.0",
+        "typing-extensions>=4.8.0"
+      ],
+      "testing": [
+        "pytest>=7.4.0",
+        "pytest-asyncio>=0.21.0",
+        "pytest-mock>=3.12.0",
+        "pytest-cov>=4.1.0"
+      ]
+    },
+    "workflows": {
+      "search_process": [
+        {
+          "step": "query_analysis",
+          "description": "使用 LLM 分析用户查询意图",
+          "component": "workflow.analysis"
+        },
+        {
+          "step": "context_enhancement",
+          "description": "通过 Wikipedia 增强查询上下文",
+          "component": "workflow.context"
+        },
+        {
+          "step": "parallel_search",
+          "description": "并行执行多源搜索",
+          "component": "workflow.search"
+        },
+        {
+          "step": "result_aggregation",
+          "description": "聚合和排序搜索结果",
+          "component": "workflow.aggregation"
+        }
+      ]
+    },
+    "configuration": {
+      "llm": {
+        "default_provider": "gemini",
+        "alternatives": ["claude"],
+        "config_path": ".env"
+      },
+      "api_settings": {
+        "max_retries": 3,
+        "timeout": 30,
+        "rate_limits": {
+          "google": 100,
+          "brave": 60,
+          "semantic_scholar": 100
+        }
+      },
+      "cache": {
+        "enabled": true,
+        "ttl": 3600,
+        "storage": ".cache"
+      },
+      "proxy": {
+        "host": "172.21.48.1",
+        "port": 7890,
+        "type": "http",
+        "description": "Windows Clash代理配置"
+      },
+      "api_keys": {
+        "google": {
+          "api_key": "GOOGLE_API_KEY",
+          "cse_id": "GOOGLE_CSE_ID"
+        },
+        "brave": {
+          "api_key": "BRAVE_API_KEY"
+        },
+        "claude": {
+          "api_key": "CLAUDE_API_KEY",
+          "base_url": "CLAUDE_BASE_URL",
+          "model": "CLAUDE_MODEL"
+        }
+      }
+    },
+    "development": {
+      "code_style": {
+        "formatter": "black",
+        "linter": "flake8",
+        "type_checker": "mypy"
+      },
+      "documentation": {
+        "format": "markdown",
+        "primary_files": [
+          "README.md",
+          "PROJECT_DESIGN.md"
+        ]
+      },
+      "testing": {
+        "framework": "pytest",
+        "coverage_target": 80,
+        "test_types": ["unit", "integration"]
+      }
+    }
+  }
+}

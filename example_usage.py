@@ -17,7 +17,7 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from search_agent import SearchAgent, setup_logging, get_logger
+from search_agent import MultiSourceSearchAgent, setup_logging, get_logger
 
 
 async def basic_search_example():
@@ -25,14 +25,8 @@ async def basic_search_example():
     print("🔍 Basic Search Example")
     print("-" * 50)
     
-    # Create search agent with configuration
-    config = {
-        "log_level": "INFO",
-        "max_results_per_source": 3,
-        "cache_type": "memory"
-    }
-    
-    agent = SearchAgent(config=config)
+    # Create search agent
+    agent = MultiSourceSearchAgent()
     logger = get_logger("example")
     
     try:
@@ -40,16 +34,9 @@ async def basic_search_example():
         query = "artificial intelligence in healthcare"
         logger.info(f"Searching for: {query}")
         
-        # Mock the search since we don't have real API keys
-        print(f"Would search for: '{query}'")
-        print("This would return results from multiple sources:")
-        print("- Wikipedia: Background information")
-        print("- Academic papers: Latest research")
-        print("- Web search: Current news and articles")
-        
-        # In a real scenario with API keys:
-        # result = await agent.search(query)
-        # print(json.dumps(result, indent=2))
+        # Execute the search
+        result = await agent.search(query)
+        print(json.dumps(result, indent=2))
         
     except Exception as e:
         logger.error(f"Search failed: {e}")
@@ -61,7 +48,7 @@ async def batch_search_example():
     print("\n📚 Batch Search Example")
     print("-" * 50)
     
-    agent = SearchAgent()
+    agent = MultiSourceSearchAgent()
     logger = get_logger("batch_example")
     
     queries = [
@@ -96,7 +83,7 @@ async def advanced_search_example():
     print("\n🚀 Advanced Search Example")
     print("-" * 50)
     
-    agent = SearchAgent()
+    agent = MultiSourceSearchAgent()
     logger = get_logger("advanced_example")
     
     try:
@@ -137,7 +124,7 @@ async def health_check_example():
     print("\n🏥 Health Check Example")
     print("-" * 50)
     
-    agent = SearchAgent()
+    agent = MultiSourceSearchAgent()
     logger = get_logger("health_example")
     
     try:
@@ -217,7 +204,7 @@ async def metrics_example():
     print("\n📊 Metrics and Monitoring Example")
     print("-" * 50)
     
-    agent = SearchAgent()
+    agent = MultiSourceSearchAgent()
     
     # Simulate some search history
     agent.search_history = [

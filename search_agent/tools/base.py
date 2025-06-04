@@ -28,6 +28,12 @@ class BaseSearchTool(ABC):
         self.name = self.__class__.__name__
         self._last_request_time = 0
         
+        # 检查是否使用模拟模式
+        try:
+            self.use_mock = get_config().development.use_mock_apis
+        except:
+            self.use_mock = False
+        
     @property
     @abstractmethod
     def tool_name(self) -> str:
@@ -59,6 +65,19 @@ class BaseSearchTool(ABC):
     
     def _standardize_result(self, raw_result: Dict[str, Any]) -> SearchResult:
         """标准化单个搜索结果"""
+        # 检查是否使用模拟模式，且结果已经是标准格式
+        if hasattr(self, 'use_mock') and self.use_mock:
+            if all(key in raw_result for key in ["title", "url", "snippet", "source"]):
+                # 直接使用模拟结果，不需要额外提取
+                return SearchResult(
+                    title=raw_result["title"],
+                    url=raw_result["url"],
+                    snippet=raw_result["snippet"],
+                    source=raw_result["source"],
+                    metadata=raw_result.get("metadata", {})
+                )
+        
+        # 正常模式下的标准化
         return SearchResult(
             title=self._extract_title(raw_result),
             url=self._extract_url(raw_result),
@@ -121,11 +140,17 @@ class BaseSearchTool(ABC):
         self._apply_rate_limit()
         
         try:
-            # 设置超时
-            raw_results = await asyncio.wait_for(
-                self._execute_search(query, **kwargs),
-                timeout=self.config.timeout
-            )
+            # 检查是否使用模拟模式
+            if hasattr(self, 'use_mock') and self.use_mock:
+                print(f"[模拟模式] {self.tool_name} 搜索: {query}")
+                # 返回模拟数据
+                raw_results = self._get_mock_results(query)
+            else:
+                # 设置超时
+                raw_results = await asyncio.wait_for(
+                    self._execute_search(query, **kwargs),
+                    timeout=self.config.timeout
+                )
             
             # 标准化结果
             standardized_results = []
@@ -152,6 +177,64 @@ class BaseSearchTool(ABC):
             "config": self.config.dict(),
             "supported_parameters": self._get_supported_parameters()
         }
+    
+    def _get_mock_results(self, query: str) -> List[Dict[str, Any]]:
+        """生成模拟搜索结果，用于测试"""
+        tool_type = self.tool_name.lower()
+        
+        # 根据工具类型生成不同的模拟结果
+        if "wikipedia" in tool_type:
+            return [
+                {
+                    "title": f"Wikipedia: {query}",
+                    "url": "https://en.wikipedia.org/wiki/Example",
+                    "snippet": f"这是关于 {query} 的模拟维基百科内容。包含了基本信息和背景知识。",
+                    "source": "Wikipedia",
+                    "metadata": {"timestamp": "2025-05-30"}
+                }
+            ]
+        elif "google" in tool_type or "brave" in tool_type:
+            return [
+                {
+                    "title": f"搜索结果: {query}",
+                    "url": f"https://example.com/result1",
+                    "snippet": f"这是关于 {query} 的第一个模拟搜索结果。提供了一些基本信息。",
+                    "source": self.tool_name,
+                    "metadata": {}
+                },
+                {
+                    "title": f"更多关于: {query}",
+                    "url": f"https://example.com/result2",
+                    "snippet": f"这是关于 {query} 的第二个模拟搜索结果。包含了一些额外信息。",
+                    "source": self.tool_name,
+                    "metadata": {}
+                }
+            ]
+        elif "scholar" in tool_type or "arxiv" in tool_type or "core" in tool_type:
+            return [
+                {
+                    "title": f"学术论文: {query}",
+                    "url": "https://example.org/paper1",
+                    "snippet": f"这是一篇关于 {query} 的模拟学术论文摘要。研究了该领域的关键问题。",
+                    "source": self.tool_name,
+                    "metadata": {
+                        "authors": ["作者 A", "作者 B"],
+                        "year": "2025",
+                        "journal": "模拟期刊"
+                    }
+                }
+            ]
+        else:
+            # 默认模拟结果
+            return [
+                {
+                    "title": f"模拟结果: {query}",
+                    "url": "https://example.com/default",
+                    "snippet": f"这是来自 {self.tool_name} 的模拟搜索结果。",
+                    "source": self.tool_name,
+                    "metadata": {}
+                }
+            ]
     
     def _get_supported_parameters(self) -> List[str]:
         """获取支持的参数列表，子类可重写"""

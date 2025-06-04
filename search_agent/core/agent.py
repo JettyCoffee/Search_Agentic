@@ -7,6 +7,7 @@ import logging
 from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
 import json
+import os
 
 from ..workflow.search_workflow import SearchWorkflow
 from ..output.json_formatter import JSONFormatter
@@ -19,8 +20,208 @@ from ..exceptions.custom_exceptions import (
     SearchAgentError, ConfigurationError, WorkflowError
 )
 
+from langchain_community.chat_models import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.schema import HumanMessage
+
+from ..tools.google_search import GoogleSearchTool
+from ..tools.brave_search import BraveSearchTool
+from ..tools.wikipedia import WikipediaTool
+
 logger = logging.getLogger(__name__)
 
+
+class MultiSourceSearchAgent:
+    """多源搜索代理"""
+    
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self._setup_logging()
+        self._setup_proxy()
+        self._check_environment()
+        self._initialize_llm()
+        self._initialize_tools()
+    
+    def _setup_logging(self):
+        """配置日志系统"""
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+    
+    def _setup_proxy(self):
+        """配置代理"""
+        # Windows主机IP（WSL默认网关）通常是172.x.x.x
+        host_ip = "172.21.48.1"  # 这里需要根据实际情况修改
+        proxy_port = "7890"  # Clash默认端口
+        
+        # 设置HTTP和HTTPS代理
+        os.environ["HTTP_PROXY"] = f"http://{host_ip}:{proxy_port}"
+        os.environ["HTTPS_PROXY"] = f"http://{host_ip}:{proxy_port}"
+        
+        self.logger.info(f"代理已配置: http://{host_ip}:{proxy_port}")
+    
+    def _check_environment(self):
+        """检查环境变量"""
+        required_vars = {
+            "GOOGLE_API_KEY": os.getenv("GOOGLE_API_KEY"),
+            "GOOGLE_CSE_ID": os.getenv("GOOGLE_CSE_ID"),
+            "BRAVE_API_KEY": os.getenv("BRAVE_API_KEY"),
+            "DEFAULT_LLM": os.getenv("DEFAULT_LLM", "gemini")
+        }
+        
+        missing_vars = [key for key, value in required_vars.items() if not value]
+        if missing_vars:
+            self.logger.error(f"缺少必要的环境变量: {', '.join(missing_vars)}")
+            raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+        
+        self.logger.info("环境变量检查通过")
+        self.logger.debug(f"当前LLM设置: {required_vars['DEFAULT_LLM']}")
+    
+    def _initialize_llm(self):
+        """初始化语言模型"""
+        default_llm = os.getenv("DEFAULT_LLM", "gemini")
+        self.logger.info(f"正在初始化LLM: {default_llm}")
+        
+        try:
+            if default_llm == "gemini":
+                self.llm = ChatGoogleGenerativeAI(
+                    model="gemini-pro",
+                    google_api_key=os.getenv("GOOGLE_API_KEY"),
+                    temperature=0.7
+                )
+            elif default_llm == "claude":
+                from langchain_anthropic import ChatAnthropic
+                self.llm = ChatAnthropic(
+                    model=os.getenv("CLAUDE_MODEL", "claude-3-sonnet-20240229"),
+                    anthropic_api_key=os.getenv("CLAUDE_API_KEY"),
+                    temperature=0.7
+                )
+            else:
+                raise ValueError(f"Unsupported LLM: {default_llm}")
+            
+            self.logger.info("LLM初始化成功")
+            
+        except Exception as e:
+            self.logger.error(f"LLM初始化失败: {str(e)}")
+            raise
+    
+    def _initialize_tools(self):
+        """初始化搜索工具"""
+        self.logger.info("正在初始化搜索工具...")
+        try:
+            self.tools = {}
+            
+            # 初始化Google搜索
+            try:
+                self.tools["google"] = GoogleSearchTool()
+                self.logger.info("Google搜索工具初始化成功")
+            except Exception as e:
+                self.logger.error(f"Google搜索工具初始化失败: {str(e)}")
+            
+            # 初始化Brave搜索
+            try:
+                self.tools["brave"] = BraveSearchTool()
+                self.logger.info("Brave搜索工具初始化成功")
+            except Exception as e:
+                self.logger.error(f"Brave搜索工具初始化失败: {str(e)}")
+            
+            # 初始化Wikipedia
+            try:
+                self.tools["wikipedia"] = WikipediaTool()
+                self.logger.info("Wikipedia工具初始化成功")
+            except Exception as e:
+                self.logger.error(f"Wikipedia工具初始化失败: {str(e)}")
+            
+            if not self.tools:
+                raise ValueError("No search tools were successfully initialized")
+                
+        except Exception as e:
+            self.logger.error(f"搜索工具初始化失败: {str(e)}")
+            raise
+    
+    def search(self, query: str, **kwargs) -> Dict[str, Any]:
+        """
+        执行多源搜索
+        
+        Args:
+            query: 搜索查询
+            **kwargs: 额外的搜索参数
+        
+        Returns:
+            Dict[str, Any]: 搜索结果
+        """
+        self.logger.info(f"开始搜索: {query}")
+        
+        try:
+            # 1. 使用LLM分析查询
+            self.logger.info("正在分析查询...")
+            analyzed_query = self._analyze_query(query)
+            self.logger.info(f"优化后的查询: {analyzed_query}")
+            
+            # 2. 获取Wikipedia背景信息
+            self.logger.info("正在获取Wikipedia上下文...")
+            wiki_context = self.tools["wikipedia"].search(query)
+            self.logger.info("已获取Wikipedia上下文")
+            
+            # 3. 执行多源搜索
+            search_results = {}
+            for source, tool in self.tools.items():
+                try:
+                    self.logger.info(f"正在从 {source} 搜索...")
+                    results = tool.search(analyzed_query)
+                    search_results[source] = {
+                        "status": "success",
+                        "results": results
+                    }
+                    self.logger.info(f"{source} 搜索完成，获取到 {len(results)} 条结果")
+                except Exception as e:
+                    self.logger.error(f"{source} 搜索失败: {str(e)}")
+                    search_results[source] = {
+                        "status": "error",
+                        "error": str(e)
+                    }
+            
+            # 4. 整理返回结果
+            result = {
+                "query_info": {
+                    "original_query": query,
+                    "analyzed_query": analyzed_query,
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "success"
+                },
+                "context": {
+                    "wikipedia": wiki_context
+                },
+                "sources": search_results
+            }
+            
+            self.logger.info("搜索完成")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"搜索过程出错: {str(e)}")
+            return {
+                "query_info": {
+                    "original_query": query,
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "error",
+                    "error": str(e)
+                }
+            }
+    
+    def _analyze_query(self, query: str) -> str:
+        """使用LLM分析和优化查询"""
+        try:
+            self.logger.info("正在使用LLM分析查询...")
+            response = self.llm.invoke(
+                [HumanMessage(content=f"请分析并优化以下搜索查询，使其更适合搜索引擎：{query}")]
+            )
+            self.logger.info("查询分析完成")
+            return response.content
+        except Exception as e:
+            self.logger.warning(f"查询分析失败，使用原始查询: {str(e)}")
+            return query
 
 class SearchAgent:
     """

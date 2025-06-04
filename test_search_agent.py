@@ -28,12 +28,19 @@ async def main():
     print(f"搜索查询: {query}")
     
     try:
-        # 执行搜索
-        results = await agent.search(query)
+        # 执行搜索，添加超时
+        print("开始执行搜索，设置超时为60秒...")
+        search_task = agent.search(query)
+        results = await asyncio.wait_for(search_task, timeout=60)
         print("\n搜索结果:")
         print(results)
+    except asyncio.TimeoutError:
+        print("搜索操作超时！可能是某个步骤执行时间过长")
     except Exception as e:
         print(f"搜索过程中发生错误: {str(e)}")
+        # 打印更详细的错误信息
+        import traceback
+        print(traceback.format_exc())
     
     print("-" * 50)
     print("测试完成")

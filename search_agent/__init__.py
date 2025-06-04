@@ -22,7 +22,7 @@ Example Usage:
     print(results)
 """
 
-from .core.agent import SearchAgent
+from .core.agent import MultiSourceSearchAgent
 from .utils.config import Config
 from .utils.logging import setup_logging, get_logger
 from .exceptions.custom_exceptions import (
@@ -36,7 +36,7 @@ from .exceptions.custom_exceptions import (
 )
 
 # Version information
-__version__ = "1.0.0"
+__version__ = "0.1.0"
 __author__ = "Search Agent Team"
 __email__ = "contact@searchagent.ai"
 __license__ = "MIT"
@@ -49,7 +49,7 @@ __url__ = "https://github.com/your-org/search-agent"
 # Export main classes and functions
 __all__ = [
     # Main classes
-    "SearchAgent",
+    "MultiSourceSearchAgent",
     "Config",
     
     # Utility functions

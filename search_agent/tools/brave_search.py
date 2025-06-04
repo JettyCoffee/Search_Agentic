@@ -3,6 +3,8 @@
 import aiohttp
 from typing import List, Dict, Any, Optional
 import asyncio
+import os
+import requests
 
 from .base import BaseSearchTool
 from ..exceptions.custom_exceptions import APIError, APIQuotaExceededError, APIAuthenticationError
@@ -198,3 +200,55 @@ class BraveNewsSearchTool(BraveSearchTool):
         })
         
         return metadata
+
+
+class BraveSearchTool:
+    """Brave搜索工具"""
+    
+    def __init__(self):
+        self.api_key = os.getenv("BRAVE_API_KEY")
+        if not self.api_key:
+            raise ValueError("Missing Brave API key")
+            
+        # 获取代理设置
+        self.proxies = {
+            "http": os.getenv("HTTP_PROXY"),
+            "https": os.getenv("HTTPS_PROXY")
+        }
+    
+    def search(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+        """
+        执行Brave搜索
+        
+        Args:
+            query: 搜索查询
+            max_results: 最大结果数量
+            
+        Returns:
+            List[Dict[str, Any]]: 搜索结果列表
+        """
+        url = "https://api.search.brave.com/res/v1/web/search"
+        headers = {
+            "Accept": "application/json",
+            "X-Subscription-Token": self.api_key
+        }
+        params = {
+            "q": query,
+            "count": max_results
+        }
+        
+        response = requests.get(url, headers=headers, params=params, proxies=self.proxies)
+        response.raise_for_status()
+        data = response.json()
+        
+        results = []
+        if "web" in data and "results" in data["web"]:
+            for item in data["web"]["results"]:
+                results.append({
+                    "title": item.get("title", ""),
+                    "link": item.get("url", ""),
+                    "snippet": item.get("description", ""),
+                    "source": "brave"
+                })
+        
+        return results

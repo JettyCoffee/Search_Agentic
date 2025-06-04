@@ -115,7 +115,7 @@ class SearchWorkflow:
                 }
             }
             
-            # Run the workflow
+            # 使用配置调用 ainvoke
             result = await self.graph.ainvoke(initial_state, config=config_dict)
             
             # Return the final output from execution metadata

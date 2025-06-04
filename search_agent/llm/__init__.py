@@ -2,6 +2,6 @@
 LLM integration module for query optimization and response processing.
 """
 
-from .gemini import GeminiLLM
+from .claude import ClaudeLLM
 
-__all__ = ["GeminiLLM"]
+__all__ = ["ClaudeLLM"]

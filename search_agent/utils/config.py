@@ -35,7 +35,7 @@ class AgentConfig(BaseSettings):
     """Agent配置设置"""
     
     # LLM选择
-    default_llm: str = Field("gemini", env="DEFAULT_LLM")
+    default_llm: str = Field("claude", env="DEFAULT_LLM")
     
     # Search settings
     max_search_results: int = Field(10, env="MAX_SEARCH_RESULTS")
@@ -63,6 +63,8 @@ class DevelopmentConfig(BaseSettings):
     """开发环境配置"""
     
     debug: bool = Field(False, env="DEBUG")
+    use_mock_apis: bool = Field(False, env="USE_MOCK_APIS")
+    use_mock_apis: bool = Field(False, env="USE_MOCK_APIS")
 
 
 class Config:
@@ -85,6 +87,10 @@ class Config:
     
     def validate_required_keys(self) -> bool:
         """验证必需的API密钥是否存在"""
+        # 如果开启了模拟模式，则跳过API密钥验证
+        if self.development.use_mock_apis:
+            return True
+            
         required_keys = [
             self.api.google_api_key,
             self.api.google_cse_id

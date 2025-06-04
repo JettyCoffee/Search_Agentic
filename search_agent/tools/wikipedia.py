@@ -3,10 +3,76 @@
 import wikipedia
 from typing import List, Dict, Any, Optional
 import asyncio
+import os
 
 from .base import BaseSearchTool
 from ..exceptions.custom_exceptions import WikipediaError
 
+
+class WikipediaTool:
+    """Wikipedia搜索工具"""
+    
+    def __init__(self):
+        wikipedia.set_lang("zh")  # 设置为中文
+        
+        # 注意：wikipedia 包不直接支持代理设置
+        # 如果需要代理，需要通过环境变量设置
+    
+    def search(self, query: str, max_results: int = 3) -> Dict[str, Any]:
+        """
+        执行Wikipedia搜索
+        
+        Args:
+            query: 搜索查询
+            max_results: 最大结果数量
+            
+        Returns:
+            Dict[str, Any]: 搜索结果
+        """
+        try:
+            # 搜索相关页面
+            search_results = wikipedia.search(query, results=max_results)
+            
+            if not search_results:
+                return {
+                    "status": "no_results",
+                    "summary": None,
+                    "results": []
+                }
+            
+            # 获取第一个结果的详细信息
+            try:
+                page = wikipedia.page(search_results[0])
+                main_summary = page.summary
+            except (wikipedia.exceptions.DisambiguationError, wikipedia.exceptions.PageError):
+                main_summary = None
+            
+            # 获取所有结果的基本信息
+            results = []
+            for title in search_results:
+                try:
+                    page = wikipedia.page(title)
+                    results.append({
+                        "title": page.title,
+                        "url": page.url,
+                        "summary": page.summary[:200] + "..."  # 截取前200个字符
+                    })
+                except (wikipedia.exceptions.DisambiguationError, wikipedia.exceptions.PageError):
+                    continue
+            
+            return {
+                "status": "success",
+                "summary": main_summary,
+                "results": results
+            }
+            
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "summary": None,
+                "results": []
+            }
 
 class WikipediaSearchTool(BaseSearchTool):
     """Wikipedia搜索工具，用于获取背景信息和上下文"""

@@ -5,38 +5,21 @@
 
 import asyncio
 import json
-from search_agent.core.agent import SearchAgent
+from search_agent import MultiSourceSearchAgent
 
-async def test_search():
+def test_basic_search():
     """测试基本搜索功能"""
-    print("初始化搜索代理...")
-    agent = SearchAgent()
+    agent = MultiSourceSearchAgent()
+    query = "人工智能在医疗诊断中的应用"
+    results = agent.search(query)
     
-    print("执行搜索...")
-    query = "人工智能在医疗领域的最新应用"
-    result = await agent.search(
-        query=query,
-        output_format="json",
-        include_raw_results=True,
-        max_results_per_source=3,
-        use_cache=True,
-        timeout=60.0
-    )
+    # 打印结果以便调试
+    print("搜索结果:", results)
     
-    print(f"搜索完成！结果包含 {len(result['search_results'])} 个来源")
-    
-    # 打印摘要
-    print("\n摘要:")
-    if "synthesis" in result and "summary" in result["synthesis"]:
-        print(result["synthesis"]["summary"])
-    else:
-        print("未生成摘要")
-    
-    # 将完整结果保存到文件
-    with open("search_result.json", "w", encoding="utf-8") as f:
-        json.dump(result, f, ensure_ascii=False, indent=2)
-    
-    print("\n完整结果已保存到 search_result.json")
+    # 基本验证
+    assert isinstance(results, dict)
+    assert "query_info" in results
+    assert "sources" in results
 
 if __name__ == "__main__":
-    asyncio.run(test_search())
+    test_basic_search()

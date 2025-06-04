@@ -3,6 +3,8 @@
 import aiohttp
 from typing import List, Dict, Any, Optional
 import asyncio
+import os
+import requests
 
 from .base import BaseSearchTool
 from ..exceptions.custom_exceptions import APIError, APIQuotaExceededError, APIAuthenticationError
@@ -14,9 +16,8 @@ class GoogleSearchTool(BaseSearchTool):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        config = get_config()
-        self.api_key = config.api.google_api_key
-        self.cse_id = config.api.google_cse_id
+        self.api_key = os.getenv("GOOGLE_API_KEY")
+        self.cse_id = os.getenv("GOOGLE_CSE_ID")
         self.base_url = "https://www.googleapis.com/customsearch/v1"
         
         if not self.api_key or self.api_key == "your_google_gemini_api_key_here":
@@ -161,3 +162,54 @@ class GoogleImageSearchTool(GoogleSearchTool):
         })
         
         return metadata
+
+
+class GoogleSearchTool:
+    """Google搜索工具"""
+    
+    def __init__(self):
+        self.api_key = os.getenv("GOOGLE_API_KEY")
+        self.cse_id = os.getenv("GOOGLE_CSE_ID")
+        if not self.api_key or not self.cse_id:
+            raise ValueError("Missing Google API credentials")
+        
+        # 获取代理设置
+        self.proxies = {
+            "http": os.getenv("HTTP_PROXY"),
+            "https": os.getenv("HTTPS_PROXY")
+        }
+    
+    def search(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+        """
+        执行Google搜索
+        
+        Args:
+            query: 搜索查询
+            max_results: 最大结果数量
+            
+        Returns:
+            List[Dict[str, Any]]: 搜索结果列表
+        """
+        url = "https://www.googleapis.com/customsearch/v1"
+        params = {
+            "key": self.api_key,
+            "cx": self.cse_id,
+            "q": query,
+            "num": min(max_results, 10)  # Google CSE限制最大为10
+        }
+        
+        response = requests.get(url, params=params, proxies=self.proxies)
+        response.raise_for_status()
+        data = response.json()
+        
+        results = []
+        if "items" in data:
+            for item in data["items"]:
+                results.append({
+                    "title": item.get("title", ""),
+                    "link": item.get("link", ""),
+                    "snippet": item.get("snippet", ""),
+                    "source": "google"
+                })
+        
+        return results
